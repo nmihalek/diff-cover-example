@@ -1,0 +1,82 @@
+apply plugin: 'jacoco'
+
+tasks.withType(Test) {
+    jacoco.includeNoLocationClasses = true
+    jacoco.excludes = ['jdk.internal.*']
+    // see related issue https://github.com/gradle/gradle/issues/5184#issuecomment-457865951
+}
+
+tasks.create(name: "jacocoTestReport", type: JacocoReport, dependsOn: ["testDebugUnitTest"]) {
+    group = "Reporting"
+    description = "Generate Jacoco coverage report for tests"
+    reports {
+        html.getRequired().set(true)
+        xml.getRequired().set(true)
+        xml.destination(file("${buildDir}/reports/jacoco/coverage.xml"))
+    }
+
+    def fileFilter = [
+            "**/*Fragment*.*",
+            "**/*Activity*.*",
+            "**/*Dialog*.*",
+            "**/*Module*.*",
+            "**/*Composable*.*",
+            "**/*ScreenUiKt*.*",
+            "**/*Database.*",
+            "**/Constants.*",
+            "**/ApiErrorUtils.*",
+            "**/ApiErrorCodes.*",
+            "**/ApiConstants.*",
+            "**/*RawJsonAdapter*.*",
+            "**/BindingAdaptersKt.*",
+            "**/HttpErrorDataJsonAdapter.*",
+            "**/DateTimeConstants.*",
+            "**/**/Logger.*",
+            "**/*App.*",
+            '**/R.class',
+            '**/R$*.class',
+            '**/BuildConfig.*',
+            '**/BuildKonfig.*',
+            '**/Manifest*.*',
+            '**/*Test*.*',
+            '**/com/example/databinding/*',
+            '**/com/example/generated/callback/*',
+            '**/common/presentation/composable/**',
+            '**/app/database/**',
+            '**/Resource*.*',
+            '**/theming/**',
+            '**/RoundedRectangleOverlayView.*',
+            '**/android/databinding/*',
+            '**/androidx/databinding/*',
+            '**/*MapperImpl*.*',
+            '**/*$ViewInjector*.*',
+            '**/*$ViewBinder*.*',
+            '**/BuildConfig.*',
+            '**/*Component*.*',
+            '**/*BR*.*',
+            '**/Manifest*.*',
+            '**/*$Lambda$*.*',
+            '**/*Companion*.*',
+            '**/*MembersInjector*.*',
+            '**/*_Factory*.*',
+            '**/*_Provide*Factory*.*',
+            '**/*Extensions*.*',
+            '**/*$Result.*', /* filtering `sealed` and `data` classes */
+            '**/*$Result$*.*',/* filtering `sealed` and `data` classes */
+            '**/*Args*.*', /* filtering Navigation Component generated classes */
+            '**/*Directions*.*', /* filtering Navigation Component generated classes */
+            '**/*Raw*.*',
+            '**/*Adapter.*'
+    ]
+    classDirectories.setFrom(files([
+            fileTree(dir: "${rootDir}/app/build/tmp/kotlin-classes/debug", excludes: fileFilter),
+    ]))
+    def coverageSourceDirs = [
+            "$project.rootDir/app/src/main/java",
+    ]
+    additionalSourceDirs.setFrom(files(coverageSourceDirs))
+    sourceDirectories.setFrom(files(coverageSourceDirs))
+    executionData(files([
+            "$rootDir/app/build/jacoco/testDebugUnitTest.exec",
+    ]))
+}

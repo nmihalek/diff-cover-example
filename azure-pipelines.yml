@@ -1,0 +1,48 @@
+# Android pipeline for running automated tests and diff code coverage on pull requests
+
+pool:
+  vmImage: 'ubuntu-latest'
+
+variables:
+  CodeCoverageTarget: '80'
+  CompareBranch: 'origin/main'
+  JaCoCoReport: app/build/reports/jacoco/coverage.xml
+  JaCoCoHtml: app/build/reports/jacoco/jacocoTestReport/html
+  HtmlReport: app/build/reports/jacoco/diff-report.html
+  JSONReport: app/build/reports/jacoco/diff-report.json
+  SrcRoots: 'app/src/main/java'
+
+steps:
+  - task: Gradle@2
+    displayName: 'Execute unit tests and generate JaCoCo coverage report' # By building the unit tests codebase, we also detect build errors
+    inputs:
+      workingDirectory: ''
+      gradleWrapperFile: 'gradlew'
+      gradleOptions: '-Xmx3072m'
+      javaHomeOption: 'JDKVersion'
+      jdkVersionOption: '1.11'
+      jdkArchitectureOption: 'x64'
+      publishJUnitResults: true
+      tasks: 'jacocoTestReport --stacktrace'
+
+  - script: python3 -m pip install diff-cover azure-devops
+    displayName: 'Install diff coverage tools'
+    condition: ne( variables['System.PullRequest.PullRequestId'], '' )
+
+  - script: python3 -m diff_cover.diff_cover_tool $(JaCoCoReport) --fail-under=$(CodeCoverageTarget) --src-roots $(SrcRoots) --compare-branch=$(CompareBranch) --html-report $(HtmlReport) --json-report $(JSONReport)
+    displayName: 'Run diff code coverage analysis'
+    condition: ne( variables['System.PullRequest.PullRequestId'], '' )
+
+  - task: PublishCodeCoverageResults@1
+    displayName: 'Publish code coverage results to ADO'
+    condition: succeededOrFailed()
+    inputs:
+      codeCoverageTool: 'JaCoCo'
+      summaryFileLocation: '$(System.DefaultWorkingDirectory)/$(JaCoCoReport)'
+      reportDirectory: '$(System.DefaultWorkingDirectory)/$(JaCoCoHtml)'
+      additionalCodeCoverageFiles: '$(System.DefaultWorkingDirectory)/$(HtmlReport)'
+
+  - script: python3 create_code_coverage_pr_status.py $(System.AccessToken) $(System.TeamFoundationCollectionUri) $(System.TeamProject) $(Build.Repository.Name) $(System.PullRequest.PullRequestId) $(Build.BuildId) $(CodeCoverageTarget) $(HtmlReport) $(JSONReport)
+    displayName: 'Create the status for this PR''s code coverage'
+    continueOnError: true
+    condition: and( succeededOrFailed(), ne( variables['System.PullRequest.PullRequestId'], '' ) )
