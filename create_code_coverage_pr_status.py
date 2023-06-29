@@ -20,10 +20,10 @@ def _init_parser():
     parser.add_argument('json_report_location')
     return parser
 
-def create_status(organization_url: str, project_name: str, build_id: str):
+def create_pr_status(organization_url: str, project_name: str, build_id: str):
     pr_status = {
-        "state": "succeeded",
-        "description": "Code coverage is ",
+        "state": "success",
+        "description": "The code coverage for this PR is ",
         "targetUrl": f"{organization_url}/{project_name}/_build/results?buildId={build_id}&view=artifacts&pathAsName=false&type=publishedArtifacts",
         "context": {
             "name": "coverage-checker",
@@ -32,7 +32,7 @@ def create_status(organization_url: str, project_name: str, build_id: str):
     }
     return pr_status
 
-def update_status(pr_status, total_lines: str, coverage_percentage: str, min_coverage: str):
+def update_pr_status(pr_status, total_lines: str, coverage_percentage: str, min_coverage: str):
     pr_status["description"] += f"{coverage_percentage}%" if(int(total_lines) > 0) else "not applicable"
     if int(coverage_percentage) < int(min_coverage) and int(total_lines) > 0:
         pr_status["state"] = "failed"
@@ -43,13 +43,12 @@ def main():
     args = parser.parse_args()
     credentials = BasicAuthentication('', args.token)
     connection = Connection(base_url=args.organization_url, creds=credentials, user_agent='azure_devops_python_user_agent')
-    status = create_status(args.organization_url, args.project_name, args.build_id)
+    status = create_pr_status(args.organization_url, args.project_name, args.build_id)
     json_report = json.load(open(args.json_report_location))
     total_coverage = json_report["total_percent_covered"]
     total_num_lines = json_report["total_num_lines"]
-    status = update_status(status, total_num_lines, total_coverage, args.min_coverage)
-     #Get this exact version of the client as 'create_pull_request_status' is not in the release package yet.
-    client = connection.get_client('azure.devops.v6_0.git.git_client.GitClient')
+    status = update_pr_status(status, total_num_lines, total_coverage, args.min_coverage)
+    client = connection.clients.get_git_client()
     client.create_pull_request_status(status, args.repository_name, args.pull_request_id, project=args.project_name)
 
 if __name__ == "__main__":
